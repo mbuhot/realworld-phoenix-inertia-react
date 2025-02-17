@@ -11,9 +11,12 @@ defmodule ConduitWeb.AuthPlug do
   end
 
   def call(conn, opts) do
+    current_user = conn.assigns[:current_user]
+    conn = assign_user_token(conn, current_user)
+
     case Keyword.get(opts, :mode, :user_required) do
       :user_required ->
-        if !conn.assigns[:current_user],
+        if !current_user,
           do:
             conn
             |> Phoenix.Controller.redirect(to: Keyword.get(opts, :to, ~p"/sign-in"))
@@ -21,12 +24,12 @@ defmodule ConduitWeb.AuthPlug do
           else: conn |> assign_user_prop()
 
       :user_optional ->
-        if conn.assigns[:current_user],
+        if current_user,
           do: conn |> assign_user_prop(),
           else: Plug.Conn.assign(conn, :current_user, nil)
 
       :no_user ->
-        if(conn.assigns[:current_user],
+        if(current_user,
           do:
             conn
             |> assign_user_prop()
@@ -35,6 +38,13 @@ defmodule ConduitWeb.AuthPlug do
           else: conn
         )
     end
+  end
+
+  defp assign_user_token(conn, nil), do: conn
+
+  defp assign_user_token(conn, current_user) do
+    token = Phoenix.Token.sign(conn, "user socket", current_user.id)
+    Plug.Conn.assign(conn, :user_token, token)
   end
 
   defp assign_user_prop(conn) do
